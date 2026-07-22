@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const ghBody = {
     // GraphHopper expects [lng, lat] pairs.
     points: [from, to],
-    profile: "scooter", // low-power base profile; custom model tightens it further
+    profile: "car", // account tier allows car/bike/foot; custom model enforces the moped rules
     points_encoded: false,
     "ch.disable": true, // required for custom models
     custom_model: customModelForCc(cc),

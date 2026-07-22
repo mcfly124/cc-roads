@@ -36,14 +36,31 @@ export function ruleForCc(cc: number): CcRule {
   return { category: "motoveicolo (≥150cc)", forbidden: [] };
 }
 
+/** Approx top speed (km/h) by vehicle class, used to make ETAs realistic. */
+export function topSpeedForCc(cc: number): number | null {
+  if (cc <= 0) return 45;
+  if (cc <= 50) return 45; // Ape 50 / ciclomotore
+  if (cc < 150) return 90;
+  return null; // treat as a normal vehicle, no extra cap
+}
+
 /**
- * Build a GraphHopper "custom model" that forbids the given road classes by
- * driving their priority to zero. Requires the request to disable CH
+ * Build a GraphHopper "custom model" that (a) forbids road classes the vehicle
+ * may not use by driving their priority to zero, and (b) caps speed to the
+ * vehicle's realistic top speed. Requires the request to disable CH
  * (`"ch.disable": true`) so the flexible engine honours the custom model.
  */
 export function customModelForCc(cc: number) {
   const { forbidden } = ruleForCc(cc);
-  return {
+  const model: {
+    priority: { if: string; multiply_by: string }[];
+    speed?: { if: string; limit_to: string }[];
+  } = {
     priority: forbidden.map((rc) => ({ if: `road_class == ${rc}`, multiply_by: "0" })),
   };
+  const top = topSpeedForCc(cc);
+  if (top != null) {
+    model.speed = [{ if: "true", limit_to: String(top) }];
+  }
+  return model;
 }
