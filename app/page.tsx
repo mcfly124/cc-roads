@@ -30,6 +30,31 @@ const MAP_STYLE = MAPTILER_KEY
 
 const OFF_ROUTE_METRES = 45; // beyond this from the line, we re-route
 
+/**
+ * Recentre-on-me control. Rendered as a child of the panel / nav footer and
+ * pinned just above it, so it never overlaps whatever their current height is.
+ */
+function LocateButton({
+  onClick,
+  locating,
+  hasFix,
+}: {
+  onClick: () => void;
+  locating: boolean;
+  hasFix: boolean;
+}) {
+  return (
+    <button
+      className={`locate-btn${hasFix ? " has-fix" : ""}`}
+      onClick={onClick}
+      disabled={locating}
+      aria-label="Centra sulla mia posizione"
+    >
+      {locating ? "◌" : "◎"}
+    </button>
+  );
+}
+
 /** Turn a GeolocationPositionError into something actionable, in Italian. */
 function geoErrorText(err: GeolocationPositionError): string {
   switch (err.code) {
@@ -66,6 +91,9 @@ export default function Home() {
   const [status, setStatus] = useState("");
   const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [locating, setLocating] = useState(false);
+  const [hasFix, setHasFix] = useState(false);
 
   const [route, setRoute] = useState<RouteData | null>(null);
   const [navigating, setNavigating] = useState(false);
@@ -108,7 +136,7 @@ export default function Home() {
       (pos) => {
         const p = { lng: pos.coords.longitude, lat: pos.coords.latitude };
         setFrom(p);
-        setFromText("Posizione attuale");
+        setFromText("La mia posizione");
         map.jumpTo({ center: [p.lng, p.lat], zoom: 14 });
         showMe([p.lng, p.lat]);
       },
@@ -130,9 +158,59 @@ export default function Home() {
   function showMe(p: LngLat) {
     const map = mapRef.current;
     if (!map) return;
-    if (meMarker.current) meMarker.current.setLngLat(p);
-    else meMarker.current = new maplibregl.Marker({ color: "#4dd4e8" }).setLngLat(p).addTo(map);
+    if (meMarker.current) {
+      meMarker.current.setLngLat(p);
+    } else {
+      const el = document.createElement("div");
+      el.className = "me-dot";
+      meMarker.current = new maplibregl.Marker({ element: el }).setLngLat(p).addTo(map);
+    }
+    setHasFix(true);
   }
+
+  /**
+   * Take a fresh fix: drop the dot, and optionally recentre the map or adopt it
+   * as the start point. Prefer calling this from a tap — iOS Safari shows the
+   * permission prompt far more reliably on a user gesture than on page load,
+   * which is why asking only in the init effect could stay silent forever.
+   */
+  const locateMe = useCallback(async (opts: { center?: boolean; asFrom?: boolean } = {}) => {
+    if (!navigator.geolocation) {
+      setStatus("Geolocalizzazione non supportata da questo browser.");
+      return null;
+    }
+    if (!window.isSecureContext) {
+      setStatus("La posizione richiede HTTPS.");
+      return null;
+    }
+    setLocating(true);
+    setStatus("Ricerca posizione…");
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 10000,
+        })
+      );
+      const p = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+      showMe([p.lng, p.lat]);
+      if (opts.center) mapRef.current?.easeTo({ center: [p.lng, p.lat], zoom: 15, duration: 600 });
+      if (opts.asFrom) {
+        setFrom(p);
+        setFromText("La mia posizione");
+        setSuggestions([]);
+        setActiveField(null);
+      }
+      setStatus("");
+      return p;
+    } catch (err) {
+      setStatus(geoErrorText(err as GeolocationPositionError));
+      return null;
+    } finally {
+      setLocating(false);
+    }
+  }, []);
 
   async function geocode(q: string, field: "from" | "to") {
     setActiveField(field);
@@ -155,6 +233,7 @@ export default function Home() {
       setToText(s.name);
     }
     setSuggestions([]);
+    setActiveField(null);
   }
 
   const fetchRoute = useCallback(async (start: Pt, dest: Pt, ccVal: number): Promise<RouteData | null> => {
@@ -375,6 +454,7 @@ export default function Home() {
 
       {navigating ? (
         <div className="nav-footer">
+          <LocateButton onClick={() => locateMe({ center: true })} locating={locating} hasFix={hasFix} />
           <div>
             {remaining && (
               <span>
@@ -388,8 +468,17 @@ export default function Home() {
         </div>
       ) : (
         <div className="panel">
-          {suggestions.length > 0 && (
+          <LocateButton onClick={() => locateMe({ center: true })} locating={locating} hasFix={hasFix} />
+          {(suggestions.length > 0 || activeField === "from") && (
             <ul className="suggestions">
+              {/* Using the current location is the most common start, so it is
+                  pinned above the geocoder results rather than buried in them. */}
+              {activeField === "from" && (
+                <li className="use-me" onClick={() => locateMe({ asFrom: true, center: true })}>
+                  <span className="use-me-icon">◎</span>
+                  {locating ? "Ricerca posizione…" : "La mia posizione"}
+                </li>
+              )}
               {suggestions.map((s, i) => (
                 <li key={i} onClick={() => pickSuggestion(s)}>
                   {s.name}
@@ -403,6 +492,7 @@ export default function Home() {
               type="text"
               placeholder="Partenza"
               value={fromText}
+              onFocus={() => setActiveField("from")}
               onChange={(e) => {
                 setFromText(e.target.value);
                 geocode(e.target.value, "from");
@@ -415,6 +505,7 @@ export default function Home() {
               type="text"
               placeholder="Destinazione"
               value={toText}
+              onFocus={() => setActiveField("to")}
               onChange={(e) => {
                 setToText(e.target.value);
                 geocode(e.target.value, "to");

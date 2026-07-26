@@ -181,3 +181,57 @@ button:disabled {
 .nav-footer .end {
   background: #b23b3b;
 }
+
+/* --- Current position --- */
+
+/* Google-Maps style dot: reads as "you", unlike a pin which reads as
+   "a place". The glow keeps it findable on a busy map. */
+.me-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2b8cf0;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 0 12px rgba(43, 140, 240, 0.9);
+}
+
+/* Recentre control. Positioned against its parent (panel or nav footer) rather
+   than the viewport, so a taller panel can never cover it. */
+.locate-btn {
+  position: absolute;
+  right: 14px;
+  top: -60px;
+  z-index: 15;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+  color: #eaeaec;
+  background: rgba(20, 20, 22, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+.locate-btn.has-fix {
+  color: #4dd4e8;
+}
+
+.locate-btn:disabled {
+  opacity: 0.6;
+}
+
+/* "La mia posizione" pinned at the top of the start-field suggestions. */
+.suggestions li.use-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #4dd4e8;
+  font-weight: 600;
+}
+
+.use-me-icon {
+  font-size: 18px;
+}
