@@ -96,6 +96,9 @@ export default function Home() {
 
   const [locating, setLocating] = useState(false);
   const [hasFix, setHasFix] = useState(false);
+  // iOS remembers a denial and never re-prompts, so "allow it in the site
+  // settings" is a dead end without the actual steps. Show them inline.
+  const [denied, setDenied] = useState(false);
 
   const [route, setRoute] = useState<RouteData | null>(null);
   const [navigating, setNavigating] = useState(false);
@@ -196,6 +199,7 @@ export default function Home() {
         })
       );
       const p = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+      setDenied(false);
       showMe([p.lng, p.lat]);
       if (opts.center) mapRef.current?.easeTo({ center: [p.lng, p.lat], zoom: 15, duration: 600 });
       if (opts.asFrom) {
@@ -207,7 +211,9 @@ export default function Home() {
       setStatus("");
       return p;
     } catch (err) {
-      setStatus(geoErrorText(err as GeolocationPositionError));
+      const e = err as GeolocationPositionError;
+      setDenied(e.code === 1); // PERMISSION_DENIED
+      setStatus(geoErrorText(e));
       return null;
     } finally {
       setLocating(false);
@@ -390,7 +396,10 @@ export default function Home() {
 
     const onPos = (pos: GeolocationPosition) =>
       updateNav([pos.coords.longitude, pos.coords.latitude], pos.coords.heading);
-    const onErr = (err: GeolocationPositionError) => setNavError(geoErrorText(err));
+    const onErr = (err: GeolocationPositionError) => {
+      setDenied(err.code === 1); // PERMISSION_DENIED
+      setNavError(geoErrorText(err));
+    };
 
     // watchPosition can take many seconds for its first fix; ask for one
     // immediately so the marker and banner appear as soon as "Avvia" is tapped.
@@ -539,6 +548,34 @@ export default function Home() {
           <div className="status">
             {category && <span className="cat">{category}</span>} {status}
           </div>
+
+          {denied && (
+            <div className="help">
+              <strong>Posizione bloccata</strong>
+              <p>iOS ricorda il rifiuto e non richiede più il permesso. Per sbloccarlo:</p>
+              <ol>
+                <li>
+                  Impostazioni → Privacy e sicurezza → Localizzazione → <em>Safari (siti web)</em> →
+                  “Mentre utilizzo l’app”, e attiva “Posizione esatta”.
+                </li>
+                <li>
+                  Qui in Safari, tocca l’icona a sinistra dell’indirizzo →{" "}
+                  <em>Impostazioni sito web</em> → Posizione → “Consenti”.
+                </li>
+                <li>
+                  Se la voce Posizione non c’è: Impostazioni → Safari → Avanzate → Dati dei siti web
+                  → elimina <em>vercel.app</em>, poi ricarica.
+                </li>
+              </ol>
+              <p className="help-note">
+                Su Android: tocca il lucchetto accanto all’indirizzo → Autorizzazioni → Posizione.
+                In navigazione privata i permessi non vengono salvati.
+              </p>
+              <button className="help-retry" onClick={() => locateMe({ center: true })}>
+                Riprova
+              </button>
+            </div>
+          )}
 
           {route?.unenforcedLabel && (
             <p className="warning">

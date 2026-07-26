@@ -253,3 +253,52 @@ button:disabled {
 .use-me-icon {
   font-size: 18px;
 }
+
+/* Permission-denied recovery steps. Only path back once iOS has memorised a
+   denial, since it stops prompting entirely. */
+.help {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #4dd4e8;
+  background: rgba(77, 212, 232, 0.1);
+  color: #d6f3f8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.help strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #4dd4e8;
+  font-size: 13px;
+}
+
+.help p {
+  margin: 4px 0;
+}
+
+.help ol {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.help li {
+  margin-bottom: 6px;
+}
+
+.help em {
+  font-style: normal;
+  font-weight: 600;
+  color: #fff;
+}
+
+.help-note {
+  color: #9fc9d1;
+}
+
+.help-retry {
+  margin-top: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+}
