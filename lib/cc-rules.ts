@@ -47,18 +47,28 @@ export function topSpeedForCc(cc: number): number | null {
 /**
  * OpenRouteService `avoid_features` for the given cc.
  *
- * ORS's free tier does not support custom cost models, so we can only avoid
- * whole feature classes. For the `driving-car` profile the only relevant one is
- * "highways" (= autostrade / motorways).
+ * "tollways" is NOT optional here. Measured on the live API, "highways" alone
+ * fails to keep routes off Italian autostrade — and on some pairs it makes
+ * things worse rather than better:
  *
- * NOTE / known limitation: ORS cannot separately avoid *superstrade* (trunk
- * roads). Legally a ciclomotore (≤50cc) may not use them either, but on the ORS
- * free tier we can only exclude motorways. Trunk-road avoidance for ≤50cc would
- * require a paid ORS custom model or a self-hosted engine.
+ *   Bergamo -> Trento   no avoid 79% motorway | highways 90% | +tollways 0%
+ *   Milano  -> Brescia  no avoid 88% motorway | highways 65% | +tollways 0%
+ *
+ * Sampling those routes against OSM confirmed real A4/A22 carriageway, so the
+ * app was routing mopeds onto the motorway. Adding "tollways" fixes it because
+ * Italian autostrade are tolled. Re-verify with scripts/ if this is ever
+ * changed: ORS returns no warning when it silently ignores the avoidance.
+ *
+ * Side effect: tolled non-motorway roads (a few alpine tunnels and passes) are
+ * also avoided. Acceptable — they are rare, and mostly barred to mopeds anyway.
+ *
+ * NOTE / known limitation: ORS still cannot separately avoid *superstrade*
+ * (trunk roads), which a ciclomotore (≤50cc) may not use either. See
+ * unenforcedForCc().
  */
 export function avoidFeaturesForCc(cc: number): string[] {
   const { forbidden } = ruleForCc(cc);
-  return forbidden.includes("MOTORWAY") ? ["highways"] : [];
+  return forbidden.includes("MOTORWAY") ? ["highways", "tollways"] : [];
 }
 
 /** Human-readable Italian name for a road class, for user-facing warnings. */
