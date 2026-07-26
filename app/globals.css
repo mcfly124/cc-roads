@@ -113,6 +113,24 @@ button:disabled {
   line-height: 1.35;
 }
 
+/* Shown only when the route may include roads this vehicle is barred from.
+   Deliberately louder than .disclaimer: this is a legal/safety gap, not
+   boilerplate. */
+.warning {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 3px solid #e0a72c;
+  background: rgba(224, 167, 44, 0.13);
+  color: #f0d9a8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.warning strong {
+  color: #ffd98a;
+}
+
 /* --- Live navigation --- */
 .nav-banner {
   position: absolute;

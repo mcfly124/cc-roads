@@ -17,6 +17,8 @@ type Instruction = {
 };
 type RouteData = {
   category: string;
+  /** Road classes forbidden by law that the backend could not actually exclude. */
+  unenforcedLabel?: string;
   distanceMeters: number;
   timeMs: number;
   geometry: GeoJSON.LineString;
@@ -537,6 +539,14 @@ export default function Home() {
           <div className="status">
             {category && <span className="cat">{category}</span>} {status}
           </div>
+
+          {route?.unenforcedLabel && (
+            <p className="warning">
+              ⚠ Questo percorso <strong>non esclude le {route.unenforcedLabel}</strong>, che il tuo
+              veicolo non può percorrere. Controlla i cartelli di divieto prima di imboccare una
+              strada a scorrimento veloce.
+            </p>
+          )}
 
           <p className="disclaimer">
             Percorso indicativo basato su dati OpenStreetMap. Verifica sempre la segnaletica stradale.

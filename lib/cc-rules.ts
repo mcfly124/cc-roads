@@ -60,3 +60,28 @@ export function avoidFeaturesForCc(cc: number): string[] {
   const { forbidden } = ruleForCc(cc);
   return forbidden.includes("MOTORWAY") ? ["highways"] : [];
 }
+
+/** Human-readable Italian name for a road class, for user-facing warnings. */
+const ROAD_CLASS_LABEL: Record<RoadClass, string> = {
+  MOTORWAY: "autostrade",
+  TRUNK: "superstrade",
+};
+
+/**
+ * Road classes this vehicle may not legally use but that the routing backend
+ * cannot actually exclude — i.e. the gap between what we claim and what we do.
+ *
+ * Derived from avoidFeaturesForCc() rather than hardcoded, so it collapses to
+ * an empty list on its own if the backend ever gains real trunk avoidance
+ * (a paid ORS custom model, or a self-hosted engine).
+ */
+export function unenforcedForCc(cc: number): RoadClass[] {
+  const { forbidden } = ruleForCc(cc);
+  const enforced: RoadClass[] = avoidFeaturesForCc(cc).includes("highways") ? ["MOTORWAY"] : [];
+  return forbidden.filter((rc) => !enforced.includes(rc));
+}
+
+/** e.g. ["TRUNK"] -> "superstrade". */
+export function labelRoadClasses(classes: RoadClass[]): string {
+  return classes.map((rc) => ROAD_CLASS_LABEL[rc]).join(" e ");
+}

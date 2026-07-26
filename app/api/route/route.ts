@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { avoidFeaturesForCc, ruleForCc, topSpeedForCc } from "@/lib/cc-rules";
+import { avoidFeaturesForCc, labelRoadClasses, ruleForCc, topSpeedForCc, unenforcedForCc } from "@/lib/cc-rules";
 
 /**
  * Server-side routing proxy (OpenRouteService).
@@ -99,9 +99,15 @@ export async function POST(req: NextRequest) {
   const summary = feature?.properties?.summary ?? {};
   const distanceMeters: number = summary.distance ?? instructions.reduce((a, i) => a + i.distance, 0);
 
+  // Road classes we claim to exclude but cannot: the client warns about these
+  // so the UI never silently promises more filtering than it delivers.
+  const unenforced = unenforcedForCc(cc);
+
   return NextResponse.json({
     category: rule.category,
     forbidden: rule.forbidden,
+    unenforced,
+    unenforcedLabel: unenforced.length ? labelRoadClasses(unenforced) : "",
     distanceMeters,
     timeMs: totalTimeMs,
     geometry, // GeoJSON LineString ([lng,lat] coords)
