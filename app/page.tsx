@@ -30,6 +30,20 @@ const MAP_STYLE = MAPTILER_KEY
 
 const OFF_ROUTE_METRES = 45; // beyond this from the line, we re-route
 
+/** Turn a GeolocationPositionError into something actionable, in Italian. */
+function geoErrorText(err: GeolocationPositionError): string {
+  switch (err.code) {
+    case err.PERMISSION_DENIED:
+      return "Permesso posizione negato: consentilo nelle impostazioni del sito.";
+    case err.POSITION_UNAVAILABLE:
+      return "Posizione non disponibile: segnale GPS assente.";
+    case err.TIMEOUT:
+      return "GPS lento: attendo un segnale…";
+    default:
+      return "Impossibile ottenere la posizione.";
+  }
+}
+
 export default function Home() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,6 +71,9 @@ export default function Home() {
   const [navigating, setNavigating] = useState(false);
   const [banner, setBanner] = useState<{ arrow: string; text: string; dist: number } | null>(null);
   const [remaining, setRemaining] = useState<{ km: number; min: number } | null>(null);
+  // Shown *inside* the navigation UI: while navigating the panel (and its
+  // `status` line) is unmounted, so GPS problems would otherwise be invisible.
+  const [navError, setNavError] = useState("");
 
   useEffect(() => {
     toRef.current = to;
@@ -93,16 +110,29 @@ export default function Home() {
         setFrom(p);
         setFromText("Posizione attuale");
         map.jumpTo({ center: [p.lng, p.lat], zoom: 14 });
-        meMarker.current = new maplibregl.Marker({ color: "#4dd4e8" })
-          .setLngLat([p.lng, p.lat])
-          .addTo(map);
+        showMe([p.lng, p.lat]);
       },
-      () => setStatus("Attiva la geolocalizzazione per usare la posizione attuale."),
+      (err) => setStatus(geoErrorText(err)),
       { enableHighAccuracy: true }
     );
 
     return () => map.remove();
   }, []);
+
+  /**
+   * Move the "you are here" marker, creating it on demand.
+   *
+   * It must be lazy: it used to be created only in the initial
+   * getCurrentPosition callback, so if that prompt was denied, still pending,
+   * or the user typed both addresses by hand, the marker stayed null and
+   * navigation silently showed no position at all.
+   */
+  function showMe(p: LngLat) {
+    const map = mapRef.current;
+    if (!map) return;
+    if (meMarker.current) meMarker.current.setLngLat(p);
+    else meMarker.current = new maplibregl.Marker({ color: "#4dd4e8" }).setLngLat(p).addTo(map);
+  }
 
   async function geocode(q: string, field: "from" | "to") {
     setActiveField(field);
@@ -195,6 +225,15 @@ export default function Home() {
     const map = mapRef.current;
     if (!coords.length || !map) return;
 
+    // Always show where we are, even if the instruction list is unusable —
+    // a throw further down would otherwise kill every later GPS update.
+    showMe(user);
+    if (!instr.length) {
+      setNavError("Percorso senza indicazioni: ricalcola.");
+      return;
+    }
+    setNavError("");
+
     const idx = nearestIndex(coords, user, lastIdx.current, 400);
     lastIdx.current = idx;
 
@@ -250,27 +289,43 @@ export default function Home() {
         ? bearing(coords[idx], coords[idx + 1])
         : 0;
 
-    meMarker.current?.setLngLat(user);
     map.easeTo({ center: user, zoom: 17, pitch: 60, bearing: bng, duration: 800 });
   }
 
   function startNav() {
-    if (!route || !navigator.geolocation) return;
+    if (!route) return;
+    if (!navigator.geolocation) return setStatus("Geolocalizzazione non supportata da questo browser.");
+    // Geolocation is blocked on non-HTTPS origins, so testing from a phone on
+    // http://<lan-ip>:3000 yields a silent permission error.
+    if (!window.isSecureContext) {
+      return setStatus("La posizione richiede HTTPS: apri il sito con https:// (o su localhost).");
+    }
+
     setNavigating(true);
     setSuggestions([]);
+    setNavError("");
     offRouteCount.current = 0;
     lastIdx.current = 0;
-    watchId.current = navigator.geolocation.watchPosition(
-      (pos) => updateNav([pos.coords.longitude, pos.coords.latitude], pos.coords.heading),
-      () => setStatus("Segnale GPS assente."),
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-    );
+
+    const onPos = (pos: GeolocationPosition) =>
+      updateNav([pos.coords.longitude, pos.coords.latitude], pos.coords.heading);
+    const onErr = (err: GeolocationPositionError) => setNavError(geoErrorText(err));
+
+    // watchPosition can take many seconds for its first fix; ask for one
+    // immediately so the marker and banner appear as soon as "Avvia" is tapped.
+    navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 30000 });
+    watchId.current = navigator.geolocation.watchPosition(onPos, onErr, {
+      enableHighAccuracy: true,
+      maximumAge: 1000,
+      timeout: 20000,
+    });
   }
 
   function stopNav() {
     setNavigating(false);
     setBanner(null);
     setRemaining(null);
+    setNavError("");
     if (watchId.current != null) {
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
@@ -296,6 +351,24 @@ export default function Home() {
           <div className="nav-text">
             <div className="nav-dist">{banner.dist} m</div>
             <div className="nav-street">{banner.text}</div>
+          </div>
+        </div>
+      )}
+
+      {navigating && !banner && !navError && (
+        <div className="nav-banner warn">
+          <span className="nav-arrow">◌</span>
+          <div className="nav-text">
+            <div className="nav-street">Ricerca posizione GPS…</div>
+          </div>
+        </div>
+      )}
+
+      {navigating && navError && (
+        <div className="nav-banner warn">
+          <span className="nav-arrow">!</span>
+          <div className="nav-text">
+            <div className="nav-street">{navError}</div>
           </div>
         </div>
       )}

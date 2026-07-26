@@ -152,6 +152,17 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
+/* GPS problems / waiting-for-fix: distinct from a real turn instruction, and
+   allowed to wrap since these messages are full sentences. */
+.nav-banner.warn {
+  background: #8a5a00;
+}
+
+.nav-banner.warn .nav-street {
+  white-space: normal;
+  color: #ffeccc;
+}
+
 .nav-footer {
   position: absolute;
   left: 0;
