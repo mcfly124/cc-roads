@@ -45,22 +45,18 @@ export function topSpeedForCc(cc: number): number | null {
 }
 
 /**
- * Build a GraphHopper "custom model" that (a) forbids road classes the vehicle
- * may not use by driving their priority to zero, and (b) caps speed to the
- * vehicle's realistic top speed. Requires the request to disable CH
- * (`"ch.disable": true`) so the flexible engine honours the custom model.
+ * OpenRouteService `avoid_features` for the given cc.
+ *
+ * ORS's free tier does not support custom cost models, so we can only avoid
+ * whole feature classes. For the `driving-car` profile the only relevant one is
+ * "highways" (= autostrade / motorways).
+ *
+ * NOTE / known limitation: ORS cannot separately avoid *superstrade* (trunk
+ * roads). Legally a ciclomotore (≤50cc) may not use them either, but on the ORS
+ * free tier we can only exclude motorways. Trunk-road avoidance for ≤50cc would
+ * require a paid ORS custom model or a self-hosted engine.
  */
-export function customModelForCc(cc: number) {
+export function avoidFeaturesForCc(cc: number): string[] {
   const { forbidden } = ruleForCc(cc);
-  const model: {
-    priority: { if: string; multiply_by: string }[];
-    speed?: { if: string; limit_to: string }[];
-  } = {
-    priority: forbidden.map((rc) => ({ if: `road_class == ${rc}`, multiply_by: "0" })),
-  };
-  const top = topSpeedForCc(cc);
-  if (top != null) {
-    model.speed = [{ if: "true", limit_to: String(top) }];
-  }
-  return model;
+  return forbidden.includes("MOTORWAY") ? ["highways"] : [];
 }
